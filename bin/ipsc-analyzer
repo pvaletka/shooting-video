@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+ARGS=("$@")
+if [[ -n "${IPSC_BEEP_PROFILE:-}" ]]; then
+  ARGS=(--beep-profile "${IPSC_BEEP_PROFILE}" "${ARGS[@]}")
+fi
+
+exec "${PROJECT_ROOT}/.venv/bin/python" "${PROJECT_ROOT}/ipsc_analyzer.py" "${ARGS[@]}"

@@ -1,0 +1,298 @@
+# IPSC Video Analyzer
+
+Small Python CLI for analyzing IPSC-style match videos from audio and rendering timing overlays on top of the source video.
+
+The tool can work in two modes:
+
+- `beep` mode: measure everything from the timer signal
+- `first_shot` mode: ignore the timer and treat the first detected shot as time zero
+
+## Features
+
+- Extracts audio from `mp4` / `mov` with `ffmpeg`
+- Detects timer beep using configurable frequency profiles
+- Detects shots using onset analysis plus simple loudness heuristics
+- Saves editable intermediate CSV
+- Renders progressive overlay back onto the source video
+- Supports per-run timer calibration with `--beep-offset`
+
+## Project Layout
+
+- [ipsc_analyzer.py](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/ipsc_analyzer.py): CLI entrypoint
+- [audio/detect.py](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/audio/detect.py): beep and shot detection
+- [video/overlay.py](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/video/overlay.py): overlay rendering
+- [utils/io.py](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/utils/io.py): config and CSV helpers
+- [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml): runtime settings
+- [bin/ipsc-analyzer](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/bin/ipsc-analyzer): wrapper script for convenient shell usage
+
+## Requirements
+
+- macOS
+- Python 3
+- `ffmpeg` installed and available in `PATH`
+
+Python dependencies are installed into the local virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Shell Wrapper
+
+The easiest way to run the tool is through the wrapper script:
+
+```bash
+./bin/ipsc-analyzer --help
+```
+
+To make it available from anywhere, add this to `~/.zshrc`:
+
+```bash
+export PATH="/Users/pavelvaletka/WORK/private/workspaces/shooting-video/bin:$PATH"
+```
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc
+```
+
+After that you can run:
+
+```bash
+ipsc-analyzer run INPUT/stage-9.mov
+```
+
+## Default Outputs
+
+If you do not pass `--csv` or `--out`, the tool writes into `./out` relative to the directory where you launch the command:
+
+- CSV: `./out/<video_stem>.events.csv`
+- overlay video: `./out/<video_stem>.overlay.mp4`
+
+Example:
+
+```bash
+ipsc-analyzer run /path/to/video.mov
+```
+
+## Commands
+
+### `analyze`
+
+Detect events and save CSV:
+
+```bash
+ipsc-analyzer analyze INPUT/stage-8-new.mov
+ipsc-analyzer analyze INPUT/stage-8-new.mov --csv tmp/stage8.csv
+```
+
+### `overlay`
+
+Render overlay from an existing CSV:
+
+```bash
+ipsc-analyzer overlay INPUT/stage-8-new.mov --csv tmp/stage8.csv
+ipsc-analyzer overlay INPUT/stage-8-new.mov --csv tmp/stage8.csv --out tmp/stage8_overlay.mp4
+```
+
+### `run`
+
+Analyze and render in one step:
+
+```bash
+ipsc-analyzer run INPUT/stage-8-new.mov
+ipsc-analyzer run INPUT/stage-8-new.mov --csv tmp/stage8.csv --out tmp/stage8_overlay.mp4
+```
+
+## Global Options
+
+### `--config`
+
+Override the YAML config file:
+
+```bash
+ipsc-analyzer --config custom.yaml run INPUT/stage-8-new.mov
+```
+
+### `--beep-offset`
+
+Apply a small timing correction after beep detection. Positive values move the beep later and reduce `Total time`. Negative values move it earlier.
+
+Example:
+
+```bash
+ipsc-analyzer --beep-offset 0.02 run INPUT/stage-8-new.mov
+```
+
+### `--beep-profile`
+
+Choose a timer profile from config, or use `auto` to try all known profiles.
+
+Examples:
+
+```bash
+ipsc-analyzer --beep-profile sg run INPUT/stage-8-new.mov
+ipsc-analyzer --beep-profile commander run INPUT/stage-9.mov
+ipsc-analyzer --beep-profile auto run INPUT/stage-9.mov
+```
+
+You can also set a default profile through the wrapper script with an environment variable:
+
+```bash
+IPSC_BEEP_PROFILE=sg ipsc-analyzer run INPUT/stage-8-new.mov
+IPSC_BEEP_PROFILE=commander ipsc-analyzer run INPUT/stage-9.mov
+```
+
+### `--time-reference`
+
+Choose what acts as time zero:
+
+- `beep`: normal timer-based mode
+- `first_shot`: ignore timer and use the first detected shot as zero
+
+Examples:
+
+```bash
+ipsc-analyzer --time-reference beep run INPUT/stage-8-new.mov
+ipsc-analyzer --time-reference first_shot run /Users/pavelvaletka/Downloads/shooting_trim.mp4
+```
+
+## CSV Format
+
+The intermediate CSV is intentionally easy to read and edit:
+
+```csv
+signal_type,timestamp,split_time
+beep,0.775000,
+shot,1.939000,1.164000
+shot,2.159000,0.220000
+```
+
+In `first_shot` mode the first line uses `shot_zero` instead of `beep`:
+
+```csv
+signal_type,timestamp,split_time
+shot_zero,6.838277,
+shot,7.082086,0.243809
+```
+
+Columns:
+
+- `signal_type`: `beep`, `shot`, or `shot_zero`
+- `timestamp`: absolute event time in seconds
+- `split_time`: informational field only
+
+The overlay is recalculated from `timestamp`, not from the stored `split_time`.
+
+## Overlay Format
+
+The overlay appears progressively as the run unfolds.
+
+Example:
+
+```text
+Total Time: 9.43
+First Shot: 1.16
+
+1. 1.16
+2. 1.38 (+0.22)
+3. 2.11 (+0.73)
+```
+
+In `first_shot` mode the header changes to `Start Shot`.
+
+## Timer Profiles
+
+Timer profiles live in [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml).
+
+Current examples:
+
+- `sg`
+- `commander`
+
+Each profile defines:
+
+- `name`
+- `center_hz`
+- `bandwidth_hz`
+
+Example:
+
+```yaml
+profiles:
+  - name: sg
+    center_hz: 2700
+    bandwidth_hz: 120
+```
+
+## Config Notes
+
+Useful settings in [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml):
+
+- `analysis.time_reference`
+- `beep.search_window_seconds`
+- `beep.profile`
+- `beep.offset_seconds`
+- `shots.min_first_shot_delay_seconds`
+- `shots.first_shot_peak_level_ratio`
+- `overlay.font_size`
+
+## Typical Workflows
+
+### 1. Fast default run
+
+```bash
+ipsc-analyzer run INPUT/stage-9.mov
+```
+
+### 2. Force a specific timer profile
+
+```bash
+ipsc-analyzer --beep-profile commander run INPUT/stage-9.mov
+```
+
+### 3. Fine-tune total time
+
+```bash
+ipsc-analyzer --beep-profile sg --beep-offset 0.02 run INPUT/stage-8-new.mov
+```
+
+### 4. Ignore the timer and measure from the first shot
+
+```bash
+ipsc-analyzer --time-reference first_shot run /Users/pavelvaletka/Downloads/shooting_trim.mp4
+```
+
+### 5. Edit CSV manually before rendering
+
+```bash
+ipsc-analyzer analyze INPUT/stage-8-new.mov --csv tmp/manual.csv
+ipsc-analyzer overlay INPUT/stage-8-new.mov --csv tmp/manual.csv --out tmp/manual_overlay.mp4
+```
+
+## Known Limitations
+
+- Timer detection still depends on profile quality and search window length
+- Different timer brands may need dedicated profiles
+- Neighboring shooters and echoes can still create false positives
+- `first_shot` mode currently assumes the first accepted shot candidate is the intended zero point
+
+## Troubleshooting
+
+### Wrong beep time
+
+- try `--beep-profile sg` or `--beep-profile commander`
+- increase `beep.search_window_seconds`
+- apply a small `--beep-offset`
+
+### First shot is missing
+
+- lower `shots.min_first_shot_delay_seconds`
+- lower `shots.first_shot_peak_level_ratio`
+
+### Files saved in an unexpected place
+
+Remember that default output goes to `./out` relative to the shell directory where you run the command.

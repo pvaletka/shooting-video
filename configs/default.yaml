@@ -1,0 +1,54 @@
+audio:
+  sample_rate: 22050
+  ffmpeg_audio_codec: pcm_s16le
+  ffmpeg_audio_channels: 1
+
+analysis:
+  time_reference: beep
+
+beep:
+  search_window_seconds: 10.0
+  min_time_seconds: 0.30
+  profile: auto
+  min_frequency_hz: 2500
+  max_frequency_hz: 5000
+  min_prominence: 0.03
+  reference_point: start
+  edge_threshold_ratio: 0.35
+  earliest_peak_score_ratio: 0.50
+  max_duration_seconds: 0.25
+  plausible_first_shot_max_delay_seconds: 3.00
+  offset_seconds: 0.0
+  profiles:
+    - name: sg
+      center_hz: 2700
+      bandwidth_hz: 120
+    - name: commander
+      center_hz: 2400
+      bandwidth_hz: 500
+
+shots:
+  min_gap_seconds: 0.10
+  min_first_shot_delay_seconds: 1.00
+  first_shot_search_window_seconds: 2.00
+  first_shot_peak_level_ratio: 0.18
+  pre_roll_seconds: 0.02
+  post_roll_seconds: 0.08
+  onset_delta: 0.18
+  onset_wait: 2
+  onset_pre_max: 2
+  onset_post_max: 2
+  onset_pre_avg: 6
+  onset_post_avg: 6
+  peak_level_ratio: 0.35
+  max_candidates: 128
+
+overlay:
+  x: 48
+  y: 72
+  font_path: /System/Library/Fonts/Supplemental/Arial Bold.ttf
+  font_size: 48
+  line_spacing: 10
+  stroke_color: black
+  stroke_width: 4
+  color: white

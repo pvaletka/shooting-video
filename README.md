@@ -273,6 +273,48 @@ ipsc-analyzer analyze INPUT/stage-8-new.mov --csv tmp/manual.csv
 ipsc-analyzer overlay INPUT/stage-8-new.mov --csv tmp/manual.csv --out tmp/manual_overlay.mp4
 ```
 
+Typical manual correction flow:
+
+1. Run `analyze` first and save the intermediate CSV.
+2. Open the CSV in a text editor or spreadsheet app.
+3. Keep the first `beep` or `shot_zero` row unchanged.
+4. Remove false `shot` rows that came from neighboring stages, echoes, or other unwanted sounds.
+5. If needed, adjust a `timestamp` manually when the detected event is slightly early or late.
+6. Ignore the stored `split_time` values while editing. They are informational only.
+7. Run `overlay` again using the corrected CSV.
+
+Example for false shots from a neighboring stage:
+
+Original CSV:
+
+```csv
+signal_type,timestamp,split_time
+beep,0.775000,
+shot,1.939000,1.164000
+shot,2.159000,0.220000
+shot,2.310000,0.151000
+shot,2.401000,0.091000
+shot,2.774000,0.373000
+```
+
+Suppose `2.310000` and `2.401000` are not your shots. Delete those rows and leave the rest:
+
+```csv
+signal_type,timestamp,split_time
+beep,0.775000,
+shot,1.939000,1.164000
+shot,2.159000,0.220000
+shot,2.774000,0.373000
+```
+
+Then rebuild the overlay:
+
+```bash
+ipsc-analyzer overlay INPUT/stage-8-new.mov --csv tmp/manual.csv --out tmp/manual_overlay.mp4
+```
+
+The overlay will be recalculated from the edited `timestamp` values, so it is safe if the old `split_time` column is no longer accurate.
+
 ## Known Limitations
 
 - Timer detection still depends on profile quality and search window length

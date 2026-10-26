@@ -120,6 +120,22 @@ ipsc-analyzer duel INPUT/a.mov INPUT/b.mov --csv-top tmp/a.csv --csv-bottom tmp/
 
 `--pre-beep` (default `1.0`) sets how much video is kept before the beep. The faster total turns green once both shooters have finished.
 
+### `serve` (web UI)
+
+Local web page for reviewing shots without editing CSV by hand:
+
+```bash
+ipsc-analyzer serve            # http://127.0.0.1:8000
+ipsc-analyzer serve --port 8765
+```
+
+1. Upload a video (button or drag & drop). The beep and shots are detected in the background; the beep search window is widened to 10 s and the beep start is refined on its tone.
+2. The table lists the detector's shots (checked) plus extra loud transients as unchecked *candidates*, since the detector misses fast follow-up shots. Check the real shots, uncheck echoes, neighbours and reload noise.
+3. Scrub the video: the timer overlay is drawn live, and the row of the current signal is highlighted. Keys: Space play/pause, ←/→ one frame, Shift+←/→ 0.5 s, `A` add a shot at the current frame, `B` move the beep here.
+4. Press **Сгенерировать видео** to render the final clip with the same overlay as `duel`, at the source resolution.
+
+Edits are saved automatically. Everything lives in `out/web/<id>/` (`source.*`, `state.json`, `final.mp4`).
+
 ## Global Options
 
 ### `--config`
@@ -287,6 +303,8 @@ shots:
 
 Useful settings in [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml):
 
+- `audio.av_offset_seconds` — the camera records sound late; this shift (default `-0.076`) is added to every detected time so marks land on the frame where the slide starts moving. Splits and totals are unaffected. Set `0` for a camera without lag.
+- `shots.min_gap_seconds` — shots closer than this (default `0.15`) are treated as echoes
 - `analysis.time_reference`
 - `beep.search_window_seconds`
 - `beep.profile`

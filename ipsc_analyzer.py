@@ -112,6 +112,10 @@ def parse_args() -> argparse.Namespace:
     )
     duel_parser.add_argument("--out", help="Output video path.")
 
+    serve_parser = subparsers.add_parser("serve", help="Run the local web UI for reviewing shots and rendering.")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1).")
+    serve_parser.add_argument("--port", type=int, default=8000, help="Port (default: 8000).")
+
     return parser.parse_args()
 
 
@@ -299,6 +303,17 @@ def main() -> None:
         for panel in panels:
             print(f"{panel.label}: {len(panel.shots)} shots, total {panel.total:.2f}s")
         print(f"Video saved to: {out_path}")
+        return
+
+    if args.command == "serve":
+        import uvicorn
+
+        from web.app import app, configure
+
+        data_dir = Path.cwd() / "out" / "web"
+        configure(config, data_dir)
+        print(f"Web UI: http://{args.host}:{args.port}  (data in {data_dir})")
+        uvicorn.run(app, host=args.host, port=args.port)
         return
 
 

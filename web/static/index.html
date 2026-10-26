@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IPSC Analyzer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>IPSC Analyzer</h1>
+    <label class="button primary">
+      Загрузить видео
+      <input id="file-input" type="file" accept="video/*" hidden>
+    </label>
+    <select id="video-select" aria-label="Загруженные видео">
+      <option value="">— выберите видео —</option>
+    </select>
+    <span id="status" class="status"></span>
+  </header>
+
+  <main id="workspace" hidden>
+    <section class="player">
+      <div class="stage">
+        <video id="video" preload="auto" playsinline></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <input id="scrub" type="range" min="0" max="0" step="0.001" value="0" aria-label="Позиция видео">
+      <div class="controls">
+        <button id="play" title="Пробел">▶︎</button>
+        <button data-step="-1" title="←">−1 кадр</button>
+        <button data-step="1" title="→">+1 кадр</button>
+        <span class="time" id="time">0.000</span>
+        <span class="spacer"></span>
+        <label>Скорость
+          <select id="rate">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+          </select>
+        </label>
+        <button id="add-shot" title="A">+ выстрел здесь</button>
+        <button id="set-beep" title="B">бип здесь</button>
+      </div>
+      <p class="hint">Пробел — пауза, ←/→ — кадр, Shift+←/→ — 0.5 с, A — выстрел, B — бип. Клик по строке — перейти к сигналу.</p>
+    </section>
+
+    <aside class="signals">
+      <div class="summary">
+        <span>Выстрелов: <b id="shot-count">0</b></span>
+        <span>Итог: <b id="total">—</b></span>
+        <span id="save-state" class="muted"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>№</th><th>от бипа</th><th>сплит</th><th>источник</th><th></th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="render">
+        <button id="render" class="primary">Сгенерировать видео</button>
+        <progress id="render-progress" max="1" value="0" hidden></progress>
+        <div id="result" hidden>
+          <video id="result-video" controls playsinline></video>
+          <a id="download" class="button">Скачать</a>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="drop-hint" hidden>Отпустите файл, чтобы загрузить</div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

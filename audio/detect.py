@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import librosa
 import numpy as np
-from scipy.signal import find_peaks
+from scipy.signal import butter, find_peaks, hilbert, sosfiltfilt
 
 from audio.features import peak_amplitude, rms_energy, safe_window, zero_crossing_rate
 
@@ -289,7 +289,96 @@ def detect_shots(signal: np.ndarray, sr: int, beep_time: float, config: dict) ->
     }
 
 
-def _resolve_shots_config(shots_config: dict) -> dict:
+def refine_beep_onset(
+    signal: np.ndarray,
+    sr: int,
+    beep_time: float,
+    center_hz: float,
+    bandwidth_hz: float,
+    window_seconds: float = 0.5,
+    threshold_ratio: float = 0.10,
+) -> float:
+    """Snap the beep to where its tone actually starts.
+
+    `detect_beep` works on STFT frames and its `start` edge can land up to
+    ~0.2s late on beeps that swell in. A narrow band-pass envelope at sample
+    resolution finds the first rise above `threshold_ratio` of the local peak.
+    """
+    half_band = max(bandwidth_hz, 200.0) / 2.0
+    low, high = max(center_hz - half_band, 50.0), min(center_hz + half_band, sr / 2.0 - 50.0)
+    sos = butter(4, [low, high], btype="band", fs=sr, output="sos")
+    start = max(0, int((beep_time - window_seconds) * sr))
+    stop = min(len(signal), int((beep_time + window_seconds) * sr))
+    if stop - start < sr // 20:
+        return beep_time
+    envelope = np.abs(hilbert(sosfiltfilt(sos, signal[start:stop])))
+    smooth = max(1, int(0.005 * sr))
+    envelope = np.convolve(envelope, np.ones(smooth) / smooth, mode="same")
+    above = np.flatnonzero(envelope > threshold_ratio * envelope.max())
+    return float((start + above[0]) / sr) if above.size else beep_time
+
+
+def high_frequency_envelope(signal: np.ndarray, sr: int, cutoff_hz: float = 4000.0) -> np.ndarray:
+    # Gunshots are broadband; timer beeps and voices sit below the cutoff.
+    sos = butter(4, cutoff_hz, btype="high", fs=sr, output="sos")
+    return np.abs(sosfiltfilt(sos, signal))
+
+
+def refine_shot_onsets(
+    signal: np.ndarray,
+    sr: int,
+    shot_times: list[float],
+    window_seconds: float = 0.06,
+    threshold_ratio: float = 0.3,
+) -> list[float]:
+    """Snap shots to the start of their high-frequency transient.
+
+    Onset detection works on ~23ms STFT hops and reports the strength peak,
+    which lands 5-35ms after the actual report — about a frame at 50fps.
+    """
+    envelope = high_frequency_envelope(signal, sr)
+    refined = []
+    for t in shot_times:
+        start = max(0, int((t - window_seconds) * sr))
+        segment = envelope[start: int((t + window_seconds) * sr)]
+        if segment.size == 0:
+            refined.append(t)
+            continue
+        peak = int(segment.argmax())
+        first = int(np.flatnonzero(segment[: peak + 1] > threshold_ratio * segment[peak])[0])
+        refined.append(round(float((start + first) / sr), 6))
+    return refined
+
+
+def find_shot_candidates(
+    signal: np.ndarray,
+    sr: int,
+    after: float,
+    exclude: list[float],
+    min_gap: float = 0.08,
+    tolerance: float = 0.04,
+    level_ratio: float = 0.6,
+) -> list[float]:
+    """Strong transients the shot detector did not accept.
+
+    The detector misses fast follow-up shots and anything inside its post-beep
+    guard. These extra candidates are offered to the user unchecked; the
+    threshold is relative to the typical loudness of the detected shots.
+    """
+    envelope = high_frequency_envelope(signal, sr)
+    window = int(0.03 * sr)
+    reference = [envelope[int(t * sr): int(t * sr) + window].max() for t in exclude if int(t * sr) < len(envelope)]
+    threshold = level_ratio * float(np.median(reference)) if reference else 0.5 * float(envelope.max())
+    peaks, _ = find_peaks(envelope, height=threshold, distance=max(1, int(min_gap * sr)))
+    candidates = []
+    for peak in peaks:
+        t = peak / sr
+        if t > after and all(abs(t - known) > tolerance for known in exclude):
+            candidates.append(round(float(t), 6))
+    return candidates
+
+
+def resolve_shots_config(shots_config: dict) -> dict:
     profiles = shots_config.get("profiles") or {}
     profile_name = str(shots_config.get("profile", "pistol")).strip()
     if profile_name not in profiles:
@@ -301,9 +390,20 @@ def _resolve_shots_config(shots_config: dict) -> dict:
     return resolved
 
 
-def detect_events(signal: np.ndarray, sr: int, config: dict) -> DetectionSummary:
+def av_offset_seconds(config: dict) -> float:
+    return float(config.get("audio", {}).get("av_offset_seconds", 0.0))
+
+
+def to_video_time(times: list[float], config: dict) -> list[float]:
+    """Map audio-track times to the picture: the camera records sound late."""
+    offset = av_offset_seconds(config)
+    return [round(max(0.0, t + offset), 6) for t in times]
+
+
+def detect_events(signal: np.ndarray, sr: int, config: dict, apply_av_offset: bool = True) -> DetectionSummary:
+    """Detect beep and shots. Times are on the video timeline unless `apply_av_offset` is False."""
     time_reference = str(config.get("analysis", {}).get("time_reference", "beep")).strip().lower()
-    shots_config = _resolve_shots_config(config["shots"])
+    shots_config = resolve_shots_config(config["shots"])
     rough_shot_times = detect_shot_onsets(signal, sr, shots_config)
     if time_reference == "first_shot":
         if rough_shot_times.size == 0:
@@ -335,4 +435,7 @@ def detect_events(signal: np.ndarray, sr: int, config: dict) -> DetectionSummary
     debug = {}
     debug.update(beep_debug)
     debug.update(shot_debug)
+    if apply_av_offset:
+        beep_time = to_video_time([beep_time], config)[0]
+        shot_times = to_video_time(shot_times, config)
     return DetectionSummary(beep_time=round(beep_time, 6), shot_times=shot_times, time_reference=time_reference, debug=debug)

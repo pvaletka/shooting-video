@@ -3,3 +3,6 @@ scipy
 librosa
 moviepy
 PyYAML
+fastapi
+uvicorn
+python-multipart

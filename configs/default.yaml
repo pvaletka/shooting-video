@@ -2,6 +2,10 @@ audio:
   sample_rate: 22050
   ffmpeg_audio_codec: pcm_s16le
   ffmpeg_audio_channels: 1
+  # Camera audio lags the picture; added to every detected time (beep and shots)
+  # so marks land on the frame where the slide starts moving. Measured on a
+  # hand-marked gold set (s7 Pavel, 2026-10-26). Set 0 for a camera without lag.
+  av_offset_seconds: -0.076
 
 analysis:
   time_reference: beep
@@ -29,7 +33,8 @@ beep:
 
 shots:
   profile: pistol
-  min_gap_seconds: 0.05
+  # Closer impulses are echoes: real splits under 0.15s are very rare.
+  min_gap_seconds: 0.15
   min_first_shot_delay_seconds: 1.00
   first_shot_search_window_seconds: 2.00
   first_shot_peak_level_ratio: 0.18

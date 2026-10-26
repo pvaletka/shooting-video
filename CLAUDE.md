@@ -19,6 +19,7 @@ The shell wrapper `bin/ipsc-analyzer` invokes `.venv/bin/python ipsc_analyzer.py
 ./bin/ipsc-analyzer trim-to-beep INPUT/stage.mov --pre-beep 1.5          # trim source so beep sits 1.5s in
 ./bin/ipsc-analyzer trim-and-overlay INPUT/stage.mov --pre-beep 1.5      # trim, then overlay on the trim
 ./bin/ipsc-analyzer duel A.mov B.mov --csv-top a.csv --csv-bottom b.csv  # two shooters stacked, synced on beep
+./bin/ipsc-analyzer serve --port 8000                                   # local web UI: review shots, render
 ```
 
 Default outputs go to `./out/` relative to the **current working directory**, not the project root. Filenames are `<video_stem>.events.csv` / `<video_stem>.overlay.mp4` (and `.trimmed.*` variants for trim commands).
@@ -66,9 +67,17 @@ The overlay grows progressively: `build_overlay_lines(events, t)` filters to sho
 
 `trim-and-overlay` writes a temporary `.tmp.trimmed.mp4` next to the final output, runs the overlay against that trimmed clip, and shifts all event timestamps by `trim_start` via `shift_events` before writing the CSV — so the saved CSV matches the trimmed timeline, not the original.
 
+### Web UI (`web/`)
+
+`serve` runs FastAPI (`web/app.py`) with a no-build static page (`web/static/`). Each upload gets `out/web/<id>/` with `source.*`, `state.json` (status, `beep`, `signals[]` with `t`, `source` = detector/candidate/manual, `enabled`) and `final.mp4`. Analysis and render run in daemon threads that update `state.json`; on startup, jobs left in `analyzing`/`rendering` are marked as errors. Analysis widens the beep search window to 10 s, refines the beep with `refine_beep_onset`, and adds unchecked `find_shot_candidates` (both in `audio/detect.py`). Render uses `video/timer_overlay.py:render_timer_video`. The canvas overlay in `web/static/app.js` duplicates the layout constants of `video/timer_overlay.py` — change both together.
+
 ### `duel` flow (`video/duel.py`)
 
-`duel` reads beep/shot times only from the two CSVs (no detection), so the expected workflow is `analyze` → hand-fix CSVs → `duel`. A single ffmpeg pass seeks each source to `beep − pre_beep`, centre-crops to 1080x960 panels, `vstack`s them, and overlays RGBA timer frames that Python renders with PIL and pipes in on stdin. Layout constants (panel size, fonts, 50 fps) are module-level, not config.
+`duel` reads beep/shot times only from the two CSVs (no detection), so the expected workflow is `analyze` → hand-fix CSVs → `duel`. A single ffmpeg pass seeks each source to `beep − pre_beep`, centre-crops to 1080x960 panels, `vstack`s them, and overlays RGBA timer frames (drawn by `video/timer_overlay.py:draw_panel`) piped in on stdin. Layout constants are module-level, not config.
+
+### Audio/video offset
+
+The camera records sound late: on a hand-marked gold set the slide starts moving ~67 ms (median) before the shot's audio onset. `audio.av_offset_seconds` (default `-0.076`, chosen so marks land on the gold frame for 19/21 shots) is added to every detected time — beep and shots — via `to_video_time` in `detect_events`, so CSVs, overlays and the web UI are on the picture's timeline. Splits and totals are unaffected (beep shifts too). The audio in rendered videos is not shifted. The web analysis calls `detect_events(..., apply_av_offset=False)`, refines beep/shot onsets on the audio, then applies the offset itself.
 
 ## Config
 

@@ -7,8 +7,8 @@ analysis:
   time_reference: beep
 
 beep:
-  search_window_seconds: 10.0
-  min_time_seconds: 0.30
+  search_window_seconds: 2.0
+  min_time_seconds: 0.20
   profile: auto
   min_frequency_hz: 2500
   max_frequency_hz: 5000
@@ -28,12 +28,13 @@ beep:
       bandwidth_hz: 500
 
 shots:
-  min_gap_seconds: 0.10
+  profile: pistol
+  min_gap_seconds: 0.05
   min_first_shot_delay_seconds: 1.00
   first_shot_search_window_seconds: 2.00
   first_shot_peak_level_ratio: 0.18
   pre_roll_seconds: 0.02
-  post_roll_seconds: 0.08
+  post_roll_seconds: 0.06
   onset_delta: 0.18
   onset_wait: 2
   onset_pre_max: 2
@@ -42,12 +43,17 @@ shots:
   onset_post_avg: 6
   peak_level_ratio: 0.35
   max_candidates: 128
+  profiles:
+    pistol: {}
+    carbine:
+      onset_delta: 0.10
+      min_gap_seconds: 0.10
 
 overlay:
   x: 48
   y: 72
   font_path: /System/Library/Fonts/Supplemental/Arial Bold.ttf
-  font_size: 48
+  font_size: 16
   line_spacing: 10
   stroke_color: black
   stroke_width: 4

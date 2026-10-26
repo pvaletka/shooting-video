@@ -29,9 +29,11 @@ def extract_audio_to_wav(
         str(channels),
         "-ar",
         str(sample_rate),
+        "-loglevel",
+        "error",
         str(wav_path),
     ]
-    subprocess.run(command, check=True, capture_output=True)
+    subprocess.run(command, check=True)
     return wav_path
 
 

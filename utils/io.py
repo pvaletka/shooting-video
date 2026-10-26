@@ -67,3 +67,12 @@ def summarize_events(events: list[Event]) -> dict[str, float | list[float]]:
         "first_shot": first_shot,
         "splits": splits,
     }
+
+
+def shift_events(events: list[Event], offset_seconds: float) -> list[Event]:
+    shifted_events: list[Event] = []
+    for event in events:
+        shifted_timestamp = max(0.0, event.timestamp - offset_seconds)
+        shifted_events.append(Event(signal_type=event.signal_type, timestamp=round(shifted_timestamp, 6)))
+    shifted_events.sort(key=lambda item: item.timestamp)
+    return shifted_events

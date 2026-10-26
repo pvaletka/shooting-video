@@ -289,16 +289,29 @@ def detect_shots(signal: np.ndarray, sr: int, beep_time: float, config: dict) ->
     }
 
 
+def _resolve_shots_config(shots_config: dict) -> dict:
+    profiles = shots_config.get("profiles") or {}
+    profile_name = str(shots_config.get("profile", "pistol")).strip()
+    if profile_name not in profiles:
+        available = ", ".join(sorted(profiles)) or "<none>"
+        raise ValueError(f"Unknown shots profile '{profile_name}'. Available: {available}.")
+    overrides = profiles[profile_name] or {}
+    resolved = {key: value for key, value in shots_config.items() if key not in {"profile", "profiles"}}
+    resolved.update(overrides)
+    return resolved
+
+
 def detect_events(signal: np.ndarray, sr: int, config: dict) -> DetectionSummary:
     time_reference = str(config.get("analysis", {}).get("time_reference", "beep")).strip().lower()
-    rough_shot_times = detect_shot_onsets(signal, sr, config["shots"])
+    shots_config = _resolve_shots_config(config["shots"])
+    rough_shot_times = detect_shot_onsets(signal, sr, shots_config)
     if time_reference == "first_shot":
         if rough_shot_times.size == 0:
             raise ValueError("No shot candidates found; cannot use first shot as time reference.")
         # Place the synthetic guard just before the earliest onset so that the
         # first detected shot survives the post-beep exclusion window.
-        provisional_beep = float(rough_shot_times[0] - float(config["shots"].get("min_first_shot_delay_seconds", 0.0)) - 1e-4)
-        shot_times, shot_debug = detect_shots(signal, sr, provisional_beep, config["shots"])
+        provisional_beep = float(rough_shot_times[0] - float(shots_config.get("min_first_shot_delay_seconds", 0.0)) - 1e-4)
+        shot_times, shot_debug = detect_shots(signal, sr, provisional_beep, shots_config)
         if not shot_times:
             raise ValueError("No shots detected; cannot use first shot as time reference.")
         # In this mode the first detected shot becomes the zero point that the
@@ -317,8 +330,8 @@ def detect_events(signal: np.ndarray, sr: int, config: dict) -> DetectionSummary
             "beep_reference": 3.0,
         }
     else:
-        beep_time, beep_debug = detect_beep(signal, sr, config["beep"], config["shots"], rough_shot_times)
-        shot_times, shot_debug = detect_shots(signal, sr, beep_time, config["shots"])
+        beep_time, beep_debug = detect_beep(signal, sr, config["beep"], shots_config, rough_shot_times)
+        shot_times, shot_debug = detect_shots(signal, sr, beep_time, shots_config)
     debug = {}
     debug.update(beep_debug)
     debug.update(shot_debug)

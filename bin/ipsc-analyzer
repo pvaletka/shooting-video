@@ -8,5 +8,8 @@ ARGS=("$@")
 if [[ -n "${IPSC_BEEP_PROFILE:-}" ]]; then
   ARGS=(--beep-profile "${IPSC_BEEP_PROFILE}" "${ARGS[@]}")
 fi
+if [[ -n "${IPSC_SHOTS_PROFILE:-}" ]]; then
+  ARGS=(--shots-profile "${IPSC_SHOTS_PROFILE}" "${ARGS[@]}")
+fi
 
 exec "${PROJECT_ROOT}/.venv/bin/python" "${PROJECT_ROOT}/ipsc_analyzer.py" "${ARGS[@]}"

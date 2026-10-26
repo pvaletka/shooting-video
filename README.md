@@ -107,6 +107,19 @@ ipsc-analyzer run INPUT/stage-8-new.mov
 ipsc-analyzer run INPUT/stage-8-new.mov --csv tmp/stage8.csv --out tmp/stage8_overlay.mp4
 ```
 
+### `duel`
+
+Compare two shooters: both videos are synced on their beeps, centre-cropped (top and bottom dropped) and stacked into one vertical 1080x1920 video with a running timer, shot count and last splits on each half. Beep and shot times come from the CSVs, so analyze both videos and fix the CSVs first:
+
+```bash
+ipsc-analyzer analyze INPUT/a.mov --csv tmp/a.csv
+ipsc-analyzer analyze INPUT/b.mov --csv tmp/b.csv
+# edit both CSVs, then:
+ipsc-analyzer duel INPUT/a.mov INPUT/b.mov --csv-top tmp/a.csv --csv-bottom tmp/b.csv --labels Alice Bob
+```
+
+`--pre-beep` (default `1.0`) sets how much video is kept before the beep. The faster total turns green once both shooters have finished.
+
 ## Global Options
 
 ### `--config`
@@ -144,6 +157,25 @@ You can also set a default profile through the wrapper script with an environmen
 ```bash
 IPSC_BEEP_PROFILE=sg ipsc-analyzer run INPUT/stage-8-new.mov
 IPSC_BEEP_PROFILE=commander ipsc-analyzer run INPUT/stage-9.mov
+```
+
+### `--shots-profile`
+
+Choose a shot detection profile from config. Defaults to `pistol`.
+
+Use `carbine` for fast strings where shot envelopes overlap and the default onset threshold drops valid shots.
+
+Examples:
+
+```bash
+ipsc-analyzer --shots-profile carbine run /path/to/carbine-run.mov
+ipsc-analyzer --shots-profile pistol run INPUT/stage-9.mov
+```
+
+You can also set a default profile through the wrapper script with an environment variable:
+
+```bash
+IPSC_SHOTS_PROFILE=carbine ipsc-analyzer run /path/to/carbine-run.mov
 ```
 
 ### `--time-reference`
@@ -228,6 +260,29 @@ profiles:
     bandwidth_hz: 120
 ```
 
+## Shots Profiles
+
+Shot detection profiles live under `shots.profiles` in [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml). Each profile is a set of overrides applied on top of the base `shots:` values.
+
+Current profiles:
+
+- `pistol` (default) — empty, uses base values tuned for typical pistol cadence
+- `carbine` — lowers `onset_delta` to catch tightly-spaced shots and raises `min_gap_seconds` to suppress double detections
+
+Example:
+
+```yaml
+shots:
+  profile: pistol
+  onset_delta: 0.18
+  min_gap_seconds: 0.05
+  profiles:
+    pistol: {}
+    carbine:
+      onset_delta: 0.10
+      min_gap_seconds: 0.10
+```
+
 ## Config Notes
 
 Useful settings in [configs/default.yaml](/Users/pavelvaletka/WORK/private/workspaces/shooting-video/configs/default.yaml):
@@ -236,6 +291,7 @@ Useful settings in [configs/default.yaml](/Users/pavelvaletka/WORK/private/works
 - `beep.search_window_seconds`
 - `beep.profile`
 - `beep.offset_seconds`
+- `shots.profile`
 - `shots.min_first_shot_delay_seconds`
 - `shots.first_shot_peak_level_ratio`
 - `overlay.font_size`
